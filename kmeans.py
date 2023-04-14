@@ -74,6 +74,83 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+def gen_kmeans(coords, k):
+    centroids = random.sample(coords, k)
+    prev_clusters = None
+    while True:
+        clusters = [[] for _ in range(k)]
+        for coord in coords:
+            distances = [np.linalg.norm(np.array(coord) - np.array(centroid)) for centroid in centroids]
+            closest_centroid = distances.index(min(distances))
+            clusters[closest_centroid].append(coord)
+        if clusters == prev_clusters:
+            return clusters
+        prev_clusters = clusters
+        centroids = [np.mean(cluster, axis=0) for cluster in clusters]
+
+
+def gen_fitness(coords, clusters):
+    fitness = 0
+    for cluster in clusters:
+        for i, coord1 in enumerate(cluster):
+            for coord2 in cluster[i + 1:]:
+                fitness += np.linalg.norm(np.array(coord1) - np.array(coord2))
+    return fitness
+
+
+def gen_initial_population(coords, k, population_size):
+    return [gen_kmeans(coords, k) for _ in range(population_size)]
+
+
+def gen_selection(population, fitnesses, num_parents):
+    selected_parents = []
+    for _ in range(num_parents):
+        parent_idx = np.random.choice(len(population), size=2, replace=False, p=fitnesses / sum(fitnesses))
+        selected_parents.append(population[parent_idx[0]])
+        selected_parents.append(population[parent_idx[1]])
+    return selected_parents
+
+
+def gen_crossover(parents):
+    child = [[] for _ in range(len(parents[0]))]
+    for i in range(len(parents[0])):
+        parent = random.choice(parents)
+        for coord in parent[i]:
+            child[i].append(coord)
+    return child
+
+
+def gen_mutation(child, mutation_rate):
+    for i in range(len(child)):
+        for j in range(len(child[i])):
+            if random.random() < mutation_rate:
+                child[i][j] = (random.randint(0, 19), random.randint(0, 19))
+    return child
+
+
+def gen_ga(coords, k, population_size, num_generations, num_parents, mutation_rate):
+    population = gen_initial_population(coords, k, population_size)
+    for generation in range(num_generations):
+        fitnesses = np.array([gen_fitness(coords, clusters) for clusters in population])
+        parents = gen_selection(population, fitnesses, num_parents)
+        offspring = [gen_crossover(parents) for _ in range(population_size)]
+        mutated_offspring = [gen_mutation(child, mutation_rate) for child in offspring]
+        population = parents + mutated_offspring
+    fitnesses = np.array([gen_fitness(coords, clusters) for clusters in population])
+    best_idx = np.argmin(fitnesses)
+    best_clusters = population[best_idx]
+    return best_clusters
+
+
+def gen_plot_clusters(coords, clusters):
+    colors = ['red', 'green', 'blue']
+    for i, cluster in enumerate(clusters):
+        x = [coord[0] for coord in cluster]
+        y = [coord[1] for coord in cluster]
+        plt.scatter(x, y, color=colors[i])
+    plt.show()
+
+
 # class to generate random nodes from 0 to max height and width
 class RandomNodes:
     def __init__(self, height, width, n):
@@ -212,8 +289,6 @@ def plotTSP(paths, points, num_iters=1):
             for j in paths[i]:
                 xi.append(points[j][0])
                 yi.append(points[j][1])
-            plt.xlim(0, 20)
-            plt.ylim(0, 20)
             plt.arrow(xi[-1], yi[-1], (xi[0] - xi[-1]), (yi[0] - yi[-1]),
                       head_width=a_scale, color='r',
                       length_includes_head=True, ls='dashed',
@@ -230,9 +305,9 @@ def plotTSP(paths, points, num_iters=1):
         plt.arrow(x[i], y[i], (x[i + 1] - x[i]), (y[i + 1] - y[i]), head_width=a_scale,
                   color='g', length_includes_head=True)
 
-    # Set axis too slitghtly larger than the set of x and y
-    plt.xlim(0, max(x) * 1.1)
-    plt.ylim(0, max(y) * 1.1)
+    # Set axis too slightly larger than the set of x and y
+    plt.xlim(0, 20)
+    plt.ylim(0, 20)
 
 
 # main function
@@ -288,7 +363,6 @@ def tsp_aco(pts):
                     # replace all nan values in probabilities with 0
                     # print(probabilities)
                     # print(np.sum(probabilities))
-                    probabilities = np.nan_to_num(probabilities, nan=0)
                     next_point = np.random.choice(unvisited, p=probabilities)
 
                     path.append(next_point)
@@ -375,6 +449,8 @@ green_cost = tsp_solve(green)
 blue_cost = tsp_solve(blue)
 total_cost = red_cost + green_cost + blue_cost
 print("Total best cost by Clustering and Simulated Annealing: ", total_cost)
+plt.xlim(0, 20)
+plt.ylim(0, 20)
 plt.show()
 
 # ---------------------------------ant colony optimization----------------------------
@@ -382,4 +458,34 @@ red_cost = tsp_aco(np.array(red))
 green_cost = tsp_aco(np.array(green))
 blue_cost = tsp_aco(np.array(blue))
 print("Total best cost by Clustering and Ant Colony Optimization: ", red_cost + green_cost + blue_cost)
+plt.xlim(0, 20)
+plt.ylim(0, 20)
+plt.show()
+
+# ---------------------------------simulated annealing----------------------------
+
+best_clusters = gen_ga(coords, 3, 50, 100, 10, 0.1)
+gen_plot_clusters(coords, best_clusters)
+
+red = best_clusters[0]
+green = best_clusters[1]
+blue = best_clusters[2]
+
+red_cost = tsp_solve(red)
+green_cost = tsp_solve(green)
+blue_cost = tsp_solve(blue)
+total_cost = red_cost + green_cost + blue_cost
+print("Total best cost by Genetic Clustering and Simulated Annealing: ", total_cost)
+# set the scale of the plot
+plt.xlim(0, 20)
+plt.ylim(0, 20)
+plt.show()
+
+# ---------------------------------ant colony optimization----------------------------
+red_cost = tsp_aco(np.array(red))
+green_cost = tsp_aco(np.array(green))
+blue_cost = tsp_aco(np.array(blue))
+print("Total best cost by Genetic Clustering and Ant Colony Optimization: ", red_cost + green_cost + blue_cost)
+plt.xlim(0, 20)
+plt.ylim(0, 20)
 plt.show()
